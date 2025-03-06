@@ -1,0 +1,9 @@
+qiskit>=1.0
+scipy>=1.4
+numpy>=1.17
+psutil>=5
+scikit-learn>=1.2
+setuptools>=40.1
+dill>=0.3.4
+qiskit-machine-learning == 0.8.2
+qiskit-ibm-runtime == 0.34.0

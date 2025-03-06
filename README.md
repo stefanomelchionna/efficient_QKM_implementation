@@ -11,7 +11,7 @@ With this project, we aim to increase efficiency by implementing several circuit
 The image below contrasts the current implementation and our proposed implementation for calculating a kernel derived from a dataset of 100 points on a 156-qubit machine. The image shows the number of jobs required to calculate the kernel (on the vertical axis) when varying the dataset dimensionality (here we assume the number of features in the dataset equals the number of qubits used for calculating each entry of the kernel - this is the typical case). The graph shows a decisive advantage of our method for datasets with low dimensionality compared to the total number of qubits available (156 in our example). 
 
 
-
+![Scaling](Images/Scaling_image.png)
 
 
 
@@ -25,5 +25,5 @@ The goal of this prototype is only to show that the method can work and to run a
 The goal of the project is to create a universal implementation supporting kernels of all types and sizes.
 
 # PRELIMINARY RESULTS
-We tested our prototype on a IBM 127 qubits machine to compute a 10x10 symmetric kernel where each entry is computed by a 2 qubits circuit. The default wisket-machine-learning implementation required the run of 45 jobs and 50 seconds of QPU time. 
+We tested our prototype on a IBM 127 qubits machine (ibm_sherbrooke) to compute a 10x10 symmetric kernel where each entry is computed by a 2 qubits circuit. The default wisket-machine-learning implementation required the run of 45 jobs and 50 seconds of QPU time. 
 Our implementation required a single job and 2 seconds of QPU time. On this particular task we were therefore 25x faster. 
