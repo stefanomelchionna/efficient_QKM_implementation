@@ -113,36 +113,58 @@ class FidelityQuantumKernel(BaseKernel):
         #return fidelity_circuit, extended_circuit
 
 
-    def evaluate_efficient(self, x_vec: np.ndarray, backend: IBMBackend, pass_manager: PassManager, shots = 1024) -> np.ndarray:
+    def evaluate_efficient(self, x_vec: np.ndarray,  backend: IBMBackend, pass_manager: PassManager, y_vec = None, shots = 1024, density = 1.0) -> np.ndarray:
+        #TODO: switch the order of the arguments
         '''
-        Efficient implementation on real backend. Only the simmetric case is implemented.
+        Efficient implementation on real backend.
         Only the Compute Uncompute fidelity is supported. 
-        Only kernels which size can be run in a single jos are supported for now. 
-
+        
         Params:
         x_vec: np.ndarray
-            The input data to be used to calculate the kernel matrix
+            The right input data to be used to calculate the kernel matrix. 
         backend: IBMBackend
             The backend to be used to run the circuits
         pass_manager: PassManager
             The pass manager to be used to transpile the circuits. Note that pass manager and backend information are nedeed here to
              adapt the run specifications to the specific backend and settings.
+        y_vec: np.ndarray
+            The left input data to be used to calculate the kernel matrix. If y_vec = None. A symmetric matrix is calculated based on x_vec only.
+        shots: int
+            The number of shots to be used to run the circuits.
+        density: float
+            The density of the circuits to be run on the backend. This is a float between 0 and 1. It indicates how many of the qubits available on the backend are used to run the jobs.
+            A too high density might lead to cross talks and reduced performance. 
         Returns:
         np.ndarray
             The kernel matrix calculated using the fidelity algorithm
         '''
+        #TODO: enforce PDS
+
+
+        x_vec, y_vec = self._validate_input(x_vec, y_vec)
+
+        # determine if calculating self inner product
+        is_symmetric = True
+        if y_vec is None:
+            y_vec = x_vec
+        elif not np.array_equal(x_vec, y_vec):
+            is_symmetric = False
+
+        kernel_shape = (x_vec.shape[0], y_vec.shape[0])
+
+
 
         # determine the number of qubits neede to compute each fidelity circuit, 
         # the number of circuits that can fit in parallel on a backend per each job 
         # and the total number of kernel entries to be calculated
-        self._num_qubits_fidelity_circuit, self._num_circuits_per_job, self._num_kernel_entries = self._determine_efficient_job_specifications(x_vec, backend)
+        self._num_qubits_fidelity_circuit, self._num_circuits_per_job, self._num_kernel_entries, self._num_jobs, self._num_circuits_last_job = self._determine_efficient_job_specifications(x_vec, y_vec, is_symmetric, backend, density = density)
         
         #create the extended fidelity circuit which defines a single job and get its parameter vector
-        extended_fidelity_circuit, parameter_values_extended_fidelity_circuit = self._create_extended_fidelity_circuit(x_vec, pass_manager)
+        pubs = self._create_pubs(x_vec, y_vec, is_symmetric, pass_manager)
         
 
-        #run the circuit
-        sampler_job_extended = self._fidelity._sampler.run([(extended_fidelity_circuit, parameter_values_extended_fidelity_circuit)], shots = shots)
+        #run the jobs
+        sampler_job_extended = self._fidelity._sampler.run(pubs, shots = shots)
 
 
         #postprocess the results
@@ -151,14 +173,21 @@ class FidelityQuantumKernel(BaseKernel):
 
 
         #assign the fidelities to the kernel matrix based on the correct indexes
-        left_parameters, right_parameters, indices = self._get_symmetric_parameterization(x_vec) 
+        if is_symmetric:
+            left_parameters, right_parameters, indices = self._get_symmetric_parameterization(x_vec)
+        else:
+            left_parameters, right_parameters, indices = self._get_parameterization(x_vec, y_vec)
 
-        kernel_shape = (x_vec.shape[0], x_vec.shape[0])
+        
         kernel_matrix = np.ones((kernel_shape))
 
-        for i, (col, row) in enumerate(indices):
-            kernel_matrix[col, row] = global_fidelities[i]     
-            kernel_matrix[row, col] = global_fidelities[i]      
+        if is_symmetric:
+            for i, (col, row) in enumerate(indices):
+                kernel_matrix[col, row] = global_fidelities[i]     
+                kernel_matrix[row, col] = global_fidelities[i]     
+        else: 
+            for i, (col, row) in enumerate(indices):
+                kernel_matrix[col, row] = global_fidelities[i] 
 
 
         return kernel_matrix
@@ -183,12 +212,22 @@ class FidelityQuantumKernel(BaseKernel):
         
         return fidelity
 
-
-
     def _postprocess_sampler_job_results(self, sampler_job_extended):
+
+        all_single_circuit_results = []
+        for job in range(self._num_jobs):
+
+            jobs_resulsts = sampler_job_extended.result()[job]
+            single_circuit_result= self._postprocess_sampler_single_job(jobs_resulsts)
+            all_single_circuit_results.extend(single_circuit_result)     #conatenating lists
+
+
+        return all_single_circuit_results
+
+    def _postprocess_sampler_single_job(self, jobs_resulsts):
         
         #get the bitstrings
-        bitstrings = sampler_job_extended.result()[0].data.c.get_bitstrings()
+        bitstrings = jobs_resulsts.data.c.get_bitstrings()
 
         #create a matrix from the bitstrings by breaking each depending on the number of qubits used by each fidelity circuit 
         bitstring_matrix = []
@@ -198,25 +237,22 @@ class FidelityQuantumKernel(BaseKernel):
         bitstring_matrix = np.array(bitstring_matrix)
 
         #Starting from the matrix collecting all the results we create the list of individual circuits results
-        all_single_circuit_results = [bitstring_matrix[:,[-k-1]] for k in range(bitstring_matrix.shape[1])] #TODO: understand why bitstrings are returned flipped
+        single_circuit_results = [bitstring_matrix[:,[-k-1]] for k in range(bitstring_matrix.shape[1])] #TODO: understand why bitstrings are returned flipped
 
-        return all_single_circuit_results
+       
+
+        return single_circuit_results
 
 
-    
-    def _create_extended_fidelity_circuit(self, x_vec: np.ndarray, pass_manager):
+
+    def _create_extended_fidelity_circuit(self, fidelity_circuit, num_circs, pass_manager):
+        #num_circs : number of repetitions of the fidelity circuit
         
-        #start from the fidelity circuit and 
-        fidelity_circuit = self.fidelity._construct_circuits([self._feature_map], [self._feature_map])[0]
-
-        #get the parametrization of all the fidelity circuits which need to be run to compute the full kernel matrix
-        left_parameters, right_parameters, indices = self._get_symmetric_parameterization(x_vec)
-        values = self._fidelity._construct_value_list([self._feature_map]*self._num_kernel_entries, [self._feature_map]*self._num_kernel_entries, left_parameters, right_parameters)  #parameters values given to the sampler
         
         #loop over the number of circuits to be run in parallel and create the extended circuit by justapposing 
         # the individual fidelity circuits with the correct parametrization
-        extended_circuit = QuantumCircuit(self._num_circuits_per_job*self._num_qubits_fidelity_circuit, self._num_circuits_per_job*self._num_qubits_fidelity_circuit)
-        for i in range(self._num_circuits_per_job):
+        extended_circuit = QuantumCircuit(num_circs*self._num_qubits_fidelity_circuit, num_circs*self._num_qubits_fidelity_circuit)
+        for i in range(num_circs):
 
             params_fidelity_circuit = list(fidelity_circuit.parameters)
             parameters_x_this_rep = ParameterVector(f"rep_{i}_x", fidelity_circuit.num_parameters//2)
@@ -231,24 +267,73 @@ class FidelityQuantumKernel(BaseKernel):
 
         #transpile the circuit and assign the parameter values to the parameters
         extended_circuit_transpliled = pass_manager.run(extended_circuit)
-        values_extended_circ = list(np.array(values).flatten())     
+
+        return extended_circuit_transpliled
+
+    
+    def _create_pubs(self, x_vec: np.ndarray, y_vec: np.ndarray, is_symmetric: bool, pass_manager):
+        
+        #start from the fidelity circuit and 
+        fidelity_circuit = self.fidelity._construct_circuits([self._feature_map], [self._feature_map])[0]
+
+        #get the parametrization of all the fidelity circuits which need to be run to compute the full kernel matrix
+        if is_symmetric:
+            left_parameters, right_parameters, indices = self._get_symmetric_parameterization(x_vec)
+        else:
+            left_parameters, right_parameters, indices = self._get_parameterization(x_vec, y_vec)
+        values = self._fidelity._construct_value_list([self._feature_map]*self._num_kernel_entries, [self._feature_map]*self._num_kernel_entries, left_parameters, right_parameters)  #parameters values given to the sampler
+        
+        extended_circuit = self._create_extended_fidelity_circuit(fidelity_circuit, self._num_circuits_per_job, pass_manager)
+
+        #create the extended circuit for the last job. This might be smaller 
+        #than the previous ones if the number of circuits to be run is not a multiple of the number of circuits per job
+        if self._num_circuits_last_job > 0:
+            extended_circuit_last_job = self._create_extended_fidelity_circuit(fidelity_circuit, self._num_circuits_last_job, pass_manager)
+        
         
 
+        values_flattened = list(np.array(values).flatten())
+        #break the values in chunks of the size of the number of parameters per job
+        number_of_parameters_per_job = self._num_qubits_fidelity_circuit*self._num_circuits_per_job*2
+        values_extended_circ = [values_flattened[i:i+number_of_parameters_per_job] for i in range(0, len(values_flattened), number_of_parameters_per_job)]        
 
-        return extended_circuit_transpliled, values_extended_circ
+        #transpile the circuits
+        #extended_circuit = pass_manager.run(extended_circuit)
+        #if self._num_circuits_last_job > 0:
+        #    extended_circuit_last_job = pass_manager.run(extended_circuit_last_job)
+
+        #create the PUBs
+        #each pub contains an extended circuit and the associated parameters
+
+        pubs = []
+        for job in range(self._num_jobs - (1 if self._num_circuits_last_job >  0 else 0)):
+            pub = (extended_circuit, values_extended_circ[job])
+            pubs.append(pub)
+        if self._num_circuits_last_job > 0:
+            pub = (extended_circuit_last_job, values_extended_circ[-1])
+            pubs.append(pub)
+
+        return pubs
 
 
 
-    def _determine_efficient_job_specifications(self, x_vec: np.ndarray, backend: IBMBackend):
+    def _determine_efficient_job_specifications(self, x_vec: np.ndarray, y_vec: np.ndarray, is_symmetric: bool, backend: IBMBackend, density: float) -> Tuple[int, int, int, int]:
 
         num_qubits_backend = backend.num_qubits                    #total number of qubits available on the backend
         num_qubits_fidelity_circuit = self.feature_map.num_qubits  #number of qubits of each small individual circuit defined by the feature map
-        num_kernel_entries = x_vec.shape[0] * (x_vec.shape[0] -1) // 2 #number of distinct kernel entries to be calculated 
-        num_circuits_per_job = min(int(np.floor(num_qubits_backend / num_qubits_fidelity_circuit)), num_kernel_entries)  #number of fidelity circuits parallelized on the backend for each job
+        if is_symmetric:
+            num_kernel_entries = x_vec.shape[0] * (x_vec.shape[0] -1) // 2 #number of distinct kernel entries to be calculated 
+        else:
+            num_kernel_entries = x_vec.shape[0] * y_vec.shape[0]
+        num_circuits_per_job = max(min(int(np.floor(num_qubits_backend * density / num_qubits_fidelity_circuit)), num_kernel_entries), 1) #number of fidelity circuits parallelized on the backend for each job
+        num_jobs = int(np.floor(num_kernel_entries/num_circuits_per_job)) + (0 if num_kernel_entries % num_circuits_per_job == 0 else 1) #number of jobs needed to compute all the kernel entries
         
+        #Compute the number of circuits for the last job. This might be smaller 
+        #than the number of circuits per job if the number of circuits to be run is not a multiple of the number of circuits per job
+        num_circuits_last_job = num_kernel_entries % num_circuits_per_job
 
 
-        return num_qubits_fidelity_circuit, num_circuits_per_job, num_kernel_entries
+        return num_qubits_fidelity_circuit, num_circuits_per_job, num_kernel_entries, num_jobs, num_circuits_last_job
 
 
 
