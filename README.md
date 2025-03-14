@@ -20,10 +20,10 @@ Our implementation will be open source and compatible with the widely used Qiski
 
  # CURRENT IMPLEMENTATION
 
-The current implementation available in this GitHub is a prototype, which only supports symmetric fidelity-kernels which are small enough to be computed with a single job. 
+The current implementation available in this GitHub is a prototype, which only supports fidelity-kernels of all sizes. 
 The goal of this prototype is only to show that the method can work and to run a first test on real QPUs. 
 The goal of the project is to create a universal implementation supporting kernels of all types and sizes.
 
 # PRELIMINARY RESULTS
-We tested our prototype on a IBM 127 qubits machine (ibm_sherbrooke) to compute a 10x10 symmetric kernel where each entry is computed by a 2 qubits circuit. The default wisket-machine-learning implementation required the run of 45 jobs and 50 seconds of QPU time. 
-Our implementation required a single job and 2 seconds of QPU time. On this particular task we were therefore 25x faster. 
+We tested our prototype on a IBM 127 qubits machine (ibm_sherbrooke and ibm_kyiv) to compute a 8x10 symmetric kernel where each entry is computed by a 2 qubits circuit. The default wisket-machine-learning implementation required the run of 80 jobs and 87 seconds of QPU time. 
+Our implementation required a only 2 jobs and 4 seconds of QPU time. On this particular task we were therefore 40x faster. 
