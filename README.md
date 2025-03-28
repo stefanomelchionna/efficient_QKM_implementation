@@ -39,8 +39,8 @@ It can be observed that for higher levels of density the speedup is significant,
 ![results_4_qubits](Test_results/impact_of_density/4_qubits/opt_3/4_qubits_opt_3_scatter_plot.png)
 
 
-For more details about this experiment please check the files Test_error_and_QPU_time.py, process_and_plot_test_results.py, config_test.json. All the calculated kernels, the metrics and the plots are avilable in the folder Test_results/impact_of_density/
-
+For more details about this experiment please check the files Test_error_and_QPU_time.py, process_and_plot_test_results.py, config_test.json. All the calculated kernels, the metrics and the plots are avilable in the folder Test_results/impact_of_density/ . 
+ 
 
 
 # FUTURE WORK
