@@ -162,11 +162,11 @@ class FidelityQuantumKernel(BaseKernel):
         #create the extended fidelity circuit which defines a single job and get its parameter vector
         pubs = self._create_pubs(x_vec, y_vec, is_symmetric, pass_manager)
         
-
+        
         #run the jobs
         sampler_job_extended = self._fidelity._sampler.run(pubs, shots = shots)
-
-
+        self._sampler_job_extended = sampler_job_extended
+        
         #postprocess the results
         all_single_circuit_results = self._postprocess_sampler_job_results(sampler_job_extended)
         global_fidelities = self._get_global_fidelities(all_single_circuit_results, shots=shots)
@@ -188,7 +188,7 @@ class FidelityQuantumKernel(BaseKernel):
         else: 
             for i, (col, row) in enumerate(indices):
                 kernel_matrix[col, row] = global_fidelities[i] 
-
+        
 
         return kernel_matrix
 
@@ -472,6 +472,7 @@ class FidelityQuantumKernel(BaseKernel):
                     left_parameters,  # type: ignore[arg-type]
                     right_parameters,  # type: ignore[arg-type]
                 )
+            
                 kernel_entries = job.result().fidelities
             else:
                 # Determine the number of chunks needed

@@ -1,0 +1,2 @@
+quantum_seconds: 25
+average_error: 0.0323944091796875

@@ -1,0 +1,11 @@
+{
+    "output_path":"Test_results/impact_of_density/",
+    "number_of_points_X":8,
+    "number_of_points_Y":8,
+    "number_of_qubits":[2,4],
+    "optimization_levels":[3,1],   
+    "seed":42,
+    "number_of_shots":4096,
+    "density":[0.1, 0.15, 0.2, 0.4, 0.6],
+    "backend_name":"ibm_kyiv"
+}

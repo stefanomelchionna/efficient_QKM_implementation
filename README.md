@@ -25,5 +25,25 @@ The goal of this prototype is only to show that the method can work and to run a
 The goal of the project is to create a universal implementation supporting kernels of all types and sizes.
 
 # PRELIMINARY RESULTS
-We tested our prototype on a IBM 127 qubits machine (ibm_sherbrooke and ibm_kyiv) to compute a 8x10 symmetric kernel where each entry is computed by a 2 qubits circuit. The default wisket-machine-learning implementation required the run of 80 jobs and 87 seconds of QPU time. 
-Our implementation required a only 2 jobs and 4 seconds of QPU time. On this particular task we were therefore 40x faster. 
+
+We tested our prototype on a IBM 127 qubits machine (ibm_kyiv). The speed up optained is as according to the theoretical speed up described in the figure above, i.e., the QPU time is proportional to the number of jobs.
+
+Obviously, the parallelization introduce additional error on NISQ machines mostly due to cross-talks and inefficient mapping of quibits to physical qubits on the actual hardware. The "denser" is the parallelization, the higher are the speedup and the additional error introduced. 
+To be able to balance the tradeoff between the speedup and the additional error, we introduced the parallelization density as an additional parameter. This parameter take values between 0 and 1 and describe how many of the qubits available on the QPU are actually used. 
+We tested the effect of different levels of density on IBM 127 qubits machine ibm_kyiv, for calculating a 8x8 non-symmetric matrix (64 independent entries) using 2 and 4 qubits for different levels of the optimization_level parameter as in qiskit.transpiler.preset_passmanagers . 
+
+The figures below show the results for 2 and 4 qubits and optimization_level = 3. They display a scatter plot of the QPU time used for calculating the kernel (in seconds) and the average error (on each kernel matrix entry). The blue points refer to runs which used our novel efficient implementation. The red dot is calculated with the standard qiskit-machine-learning implementation and it is used as a benchmark. The error levels have been calculated with respect to the kernel computed on a noise-free simulator. 
+It can be observed that for higher levels of density the speedup is significant, but the results are too noisy. For density around [0.1, 0.15] we still have a 3x-7x speedup while the additional error introduced by the parallelization is negligible. 
+
+![results_2_qubits](Test_results/impact_of_density/2_qubits/opt_3/2_qubits_opt_3_scatter_plot.png)
+![results_4_qubits](Test_results/impact_of_density/4_qubits/opt_3/4_qubits_opt_3_scatter_plot.png)
+
+
+For more details about this experiment please check the files Test_error_and_QPU_time.py, process_and_plot_test_results.py, config_test.json. All the calculated kernels, the metrics and the plots are avilable in the folder Test_results/impact_of_density/
+
+
+
+# FUTURE WORK
+
+We plan to implement our method to support other types of kernels. 
+Also, we plan to implement an efficient transpillation algorithm mapping effiiently qubits to physical qubits which takes into account the connectivity of the machine, to reduce cross-talks and error. 
