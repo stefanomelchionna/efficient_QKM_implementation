@@ -52,7 +52,7 @@ for number_of_qubits in params['number_of_qubits']:
         fig, ax = plt.subplots()
         ax.scatter(quantum_seconds, average_errors)
         for i, txt in enumerate(densities):
-            ax.annotate(txt, (quantum_seconds[i], average_errors[i]))
+            ax.annotate(f"density: {txt}", (quantum_seconds[i], average_errors[i]))
 
         #add one red dot corresponding to quantum seconds and average error for the standard implementation
         # Load the standard implementation metrics file
@@ -66,12 +66,13 @@ for number_of_qubits in params['number_of_qubits']:
                     standard_average_error = float(line.split(': ')[1])
         
         # Add the red dot
-        ax.scatter(standard_quantum_seconds, standard_average_error, color='red', label='Standard Implementation')
+        ax.scatter(standard_quantum_seconds, standard_average_error, color='red')
+        ax.annotate(f"st_impl", (standard_quantum_seconds, standard_average_error))
 
         plt.xlabel('Quantum seconds')
         plt.ylabel('Average error')
         plt.title(f'QPU time vs error for different levels of density for {number_of_qubits} qubits and opt level {optimization_level}')
-        plt.legend()
+        
         
         #save figure to file
         plt.savefig(f'{output_path}{number_of_qubits}_qubits/opt_{optimization_level}/{number_of_qubits}_qubits_opt_{optimization_level}_scatter_plot.png')
