@@ -47,3 +47,7 @@ For more details about this experiment please check the files Test_error_and_QPU
 
 We plan to implement our method to support other types of kernels. 
 Also, we plan to implement an efficient transpillation algorithm mapping effiiently qubits to physical qubits which takes into account the connectivity of the machine, to reduce cross-talks and error. 
+
+# NOTES
+
+Link to youtube explanatory video: https://www.youtube.com/watch?v=FzoJAQU_I3g&ab_channel=sm_quantum.youtube
